@@ -1,6 +1,7 @@
 const { spawn } = require("child_process");
 const path = require("path");
 const http = require("http");
+const fs = require("fs");
 
 const port = process.env.PORT || 3000;
 
@@ -10,11 +11,31 @@ http.createServer((req, res) => {
   res.end("NixBot is running ✅");
 }).listen(port, () => console.log("[launcher] port " + port));
 
+
+// Session WhatsApp : si session/creds.json manque, on le copie depuis un Secret File Render
+// (Render > Environment > Secret Files > nom du fichier : creds.json)
+function restoreSession() {
+  try {
+    const dir = path.join(__dirname, "session");
+    const dest = path.join(dir, "creds.json");
+    if (fs.existsSync(dest)) return;
+    const sources = ["/etc/secrets/creds.json", path.join(__dirname, "creds.json")];
+    const src = sources.find((f) => fs.existsSync(f));
+    if (!src) return console.log("[launcher] aucun creds.json trouvé (Secret File « creds.json » manquant)");
+    fs.mkdirSync(dir, { recursive: true });
+    fs.copyFileSync(src, dest);
+    console.log("[launcher] session restaurée depuis " + src);
+  } catch (e) {
+    console.log("[launcher] restauration de la session impossible : " + e.message);
+  }
+}
+
 let child = null;
 let stopping = false;
 let fails = 0;
 
 function startBot() {
+  restoreSession();
   const startedAt = Date.now();
   child = spawn(process.execPath, [path.join(__dirname, "nix.js")], {
     cwd: __dirname,
